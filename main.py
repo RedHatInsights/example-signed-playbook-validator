@@ -13,14 +13,17 @@ gpg = gnupg.GPG(gnupghome = '.')
 def sign_them_all():
     with open('example-playbook.yml.orig', 'r') as yaml_file:
         yml = yaml.load(yaml_file, Loader=yaml.FullLoader)
-        i = True
         for snippet in yml:
             if 'name' not in snippet:
                 raise Exception
 
+            if 'tasks' not in snippet:
+                raise Exception
+
+            snippet = snippet['tasks']
             snippet_serialized = pickle.dumps(snippet)
             sig = bytes(str(gpg.sign(snippet_serialized, detach = True)), 'UTF-8')
-            snippet[SIGKEY] = base64.b64encode(sig)
+            snippet.insert(0, { SIGKEY: base64.b64encode(sig) })
 
         with(open('example-playbook.yml', 'w')) as output:
             yaml.dump(yml, output, sort_keys=False)
@@ -32,14 +35,19 @@ def validate():
         for snippet in yml:
             if 'name' not in snippet:
                 raise Exception
-            if SIGKEY not in snippet:
+
+            if 'tasks' not in snippet:
+                raise Exception
+
+            snippet = snippet['tasks']
+
+            if SIGKEY not in snippet[0]:
                 raise Exception('Refusing to use Playbook with an unsigned snippet')
 
-            original_snippet = dict(snippet)
-            del original_snippet[SIGKEY]
-            snippet_serialized = pickle.dumps(original_snippet)
+            signature = snippet[0][SIGKEY]
+            snippet.pop(0)
+            snippet_serialized = pickle.dumps(snippet)
 
-            signature = snippet[SIGKEY]
             fd, fn = tempfile.mkstemp()
             os.write(fd, base64.b64decode(signature))
             os.close(fd)
