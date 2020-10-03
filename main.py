@@ -6,8 +6,7 @@ import tempfile
 import base64
 
 SIGKEY = 'insights_signature'
-
-gpg = gnupg.GPG(gnupghome = '.')
+gpg = gnupg.GPG(gnupghome='.')
 
 
 def sign_them_all():
@@ -22,8 +21,8 @@ def sign_them_all():
 
             snippet = snippet['tasks']
             snippet_serialized = pickle.dumps(snippet)
-            sig = bytes(str(gpg.sign(snippet_serialized, detach = True)), 'UTF-8')
-            snippet.insert(0, { SIGKEY: base64.b64encode(sig) })
+            sig = bytes(str(gpg.sign(snippet_serialized, detach=True)), 'UTF-8')
+            snippet.insert(0, {SIGKEY: base64.b64encode(sig)})
 
         with(open('example-playbook.yml', 'w')) as output:
             yaml.dump(yml, output, sort_keys=False)
@@ -60,5 +59,25 @@ def validate():
 
             print('Verified snippet')
 
+
+def lint():
+    def recurse(item, name):
+        if name:
+            if name == 'shell':
+                print('{}: "{}"'.format(name, item))
+                raise Exception('We dont allow using shell in Playbooks!')
+        if isinstance(item, list):
+            for i in item:
+                recurse(i, None)
+        if isinstance(item, dict):
+            for key, val in item.items():
+                recurse(val, key)
+
+    with open('example-playbook.yml', 'r') as yaml_file:
+        yml = yaml.load(yaml_file, Loader=yaml.FullLoader)
+        recurse(yml, None)
+
+
+# lint()
 sign_them_all()
 validate()
